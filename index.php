@@ -1,69 +1,103 @@
 <?php
-session_start();
-require 'db.php';
+// 1. Database Connection
+require_once 'db.php'; 
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
+// 2. Setup Pagination Variables
+$limit = 2; // Set to 2 posts per page to easily test pagination
+$page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$offset = ($page - 1) * $limit;
+
+// 3. Get Search Keyword
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// 4. Fetch Posts and Count Total Rows
+if (!empty($search)) {
+    $searchTerm = "%" . $search . "%";
+
+    // Count matching rows for search
+    $countStmt = $conn->prepare("SELECT COUNT(*) AS total FROM posts WHERE title LIKE ? OR content LIKE ?");
+    $countStmt->bind_param("ss", $searchTerm, $searchTerm);
+    $countStmt->execute();
+    $totalRows = $countStmt->get_result()->fetch_assoc()['total'];
+
+    // Fetch paginated search results
+    $stmt = $conn->prepare("SELECT * FROM posts WHERE title LIKE ? OR content LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt->bind_param("ssii", $searchTerm, $searchTerm, $limit, $offset);
+    $stmt->execute();
+    $posts = $stmt->get_result();
+} else {
+    // Count total rows overall
+    $totalRows = $conn->query("SELECT COUNT(*) AS total FROM posts")->fetch_assoc()['total'];
+
+    // Fetch paginated rows overall
+    $stmt = $conn->prepare("SELECT * FROM posts ORDER BY created_at DESC LIMIT ? OFFSET ?");
+    $stmt->bind_param("ii", $limit, $offset);
+    $stmt->execute();
+    $posts = $stmt->get_result();
 }
 
-// Fetch all posts from database
-$stmt = $pdo->query("SELECT * FROM posts ORDER BY created_at DESC");
-$posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$totalPages = ceil($totalRows / $limit);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Blog Posts Table</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 30px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #4CAF50; color: white; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        .btn { text-decoration: none; padding: 5px 10px; border-radius: 3px; }
-        .edit { background-color: #2196F3; color: white; }
-        .delete { background-color: #f44336; color: white; }
-    </style>
+    <title>Blog - Task 3</title>
+    <!-- Bootstrap CSS for modern UI -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
+<div class="container mt-4">
+    <h2 class="mb-4">Blog Posts</h2>
 
-    <h2>Welcome, <?= htmlspecialchars($_SESSION['username']) ?>!</h2>
-    <a href="create.php">Create New Post</a> | <a href="logout.php">Logout</a>
+    <!-- Search Form -->
+    <form action="index.php" method="GET" class="mb-4 d-flex gap-2">
+        <input 
+            type="text" 
+            name="search" 
+            class="form-control" 
+            placeholder="Search by title or content..." 
+            value="<?php echo htmlspecialchars($search); ?>"
+        >
+        <button type="submit" class="btn btn-primary">Search</button>
+        <a href="index.php" class="btn btn-secondary">Reset</a>
+    </form>
 
-    <h3>Blog Posts Table</h3>
+    <!-- Posts List -->
+    <div class="row">
+        <?php if ($posts && $posts->num_rows > 0): ?>
+            <?php while($row = $posts->fetch_assoc()): ?>
+                <div class="col-12 mb-3">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title"><?php echo htmlspecialchars($row['title']); ?></h5>
+                            <p class="card-text"><?php echo htmlspecialchars($row['content']); ?></p>
+                            <small class="text-muted">Posted on: <?php echo $row['created_at']; ?></small>
+                        </div>
+                    </div>
+                </div>
+            <?php endwhile; ?>
+        <?php else: ?>
+            <p class="text-muted">No posts found.</p>
+        <?php endif; ?>
+    </div>
 
-    <?php if (empty($posts)): ?>
-        <p>No posts found in the database table.</p>
-    <?php else: ?>
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Title</th>
-                    <th>Content</th>
-                    <th>Created At</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($posts as $post): ?>
-                    <tr>
-                        <td><?= $post['id'] ?></td>
-                        <td><?= htmlspecialchars($post['title']) ?></td>
-                        <td><?= htmlspecialchars($post['content']) ?></td>
-                        <td><?= $post['created_at'] ?></td>
-                        <td>
-                            <a href="edit.php?id=<?= $post['id'] ?>" class="btn edit">Edit</a>
-                            <a href="delete.php?id=<?= $post['id'] ?>" class="btn delete" onclick="return confirm('Delete this post?')">Delete</a>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+    <!-- Pagination Buttons -->
+    <?php if ($totalPages > 1): ?>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <li class="page-item <?php echo ($i === $page) ? 'active' : ''; ?>">
+                        <a class="page-link" href="index.php?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>">
+                            <?php echo $i; ?>
+                        </a>
+                    </li>
+                <?php endfor; ?>
+            </ul>
+        </nav>
     <?php endif; ?>
-
+</div>
 </body>
 </html>
