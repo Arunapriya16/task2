@@ -40,5 +40,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="submit">Update</button>
     </form>
     <br><a href="index.php">Back to Dashboard</a>
+    <?php include_once 'header.php'; ?>
 </body>
 </html>

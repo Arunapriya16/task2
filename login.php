@@ -1,6 +1,13 @@
 <?php
 session_start();
-require 'db.php';
+require_once 'db.php';
+
+// If already logged in, redirect straight to index
+if (isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit();
+}
+
 $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -12,10 +19,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($user && password_verify($password, $user['password'])) {
+        // Save user data to Session
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'] ?? 'user'; // Stores role if present
+
+        // Redirect to home page
         header("Location: index.php");
-        exit;
+        exit();
     } else {
         $message = "Invalid username or password.";
     }
@@ -23,15 +34,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 ?>
 <!DOCTYPE html>
 <html>
-<head><title>Login</title></head>
+<head>
+    <title>Login - Blog App</title>
+</head>
 <body>
+    <?php include_once 'header.php'; ?>
+
     <h2>Login</h2>
-    <p style="color:red;"><?= $message ?></p>
-    <form method="POST">
+    <?php if (!empty($message)): ?>
+        <p style="color:red;"><?= htmlspecialchars($message) ?></p>
+    <?php endif; ?>
+
+    <form method="POST" action="login.php">
         <input type="text" name="username" placeholder="Username" required><br><br>
         <input type="password" name="password" placeholder="Password" required><br><br>
         <button type="submit">Login</button>
     </form>
+
     <p>Don't have an account? <a href="register.php">Register here</a></p>
 </body>
 </html>
