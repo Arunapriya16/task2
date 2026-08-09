@@ -1,41 +1,52 @@
 <?php
 session_start();
-require_once 'db.php';
 
-// Fetch all posts from database safely
-$query = "SELECT * FROM posts ORDER BY created_at DESC";
-$result = mysqli_query($conn, $query);
+// Database connection using PDO
+try {
+    $pdo = new PDO("mysql:host=localhost;dbname=blog;charset=utf8mb4", "root", "");
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (PDOException $e) {
+    die("Database connection failed: " . $e->getMessage());
+}
+
+// Fetch all posts from the database
+$stmt = $pdo->query("SELECT * FROM posts ORDER BY id DESC");
+$posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
     <title>Blog Home</title>
 </head>
 <body>
+    <?php 
+    if (file_exists('header.php')) {
+        include_once 'header.php';
+    }
+    ?>
 
-<?php include_once 'header.php'; ?>
+    <h2>Welcome to the Blog</h2>
 
-<h2>Blog Posts</h2>
+    <?php if (isset($_SESSION['username'])): ?>
+        <p>Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href="create.php">Create New Post</a> | <a href="logout.php">Logout</a></p>
+    <?php else: ?>
+        <p><a href="login.php">Login</a> or <a href="register.php">Register</a> to create posts.</p>
+    <?php endif; ?>
 
-<?php if (mysqli_num_rows($result) > 0): ?>
-    <?php while ($post = mysqli_fetch_assoc($result)): ?>
-        <article style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px;">
-            <h3><?= htmlspecialchars($post['title']) ?></h3>
-            <p><?= nl2br(htmlspecialchars($post['content'])) ?></p>
-            
-            <!-- Show Edit/Delete options if logged in -->
-            <?php if (isset($_SESSION['user_id'])): ?>
-                <a href="edit.php?id=<?= $post['id'] ?>">Edit</a>
-                <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
-                    | <a href="delete.php?id=<?= $post['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
-                <?php endif; ?>
-            <?php endif; ?>
-        </article>
-    <?php endwhile; ?>
-<?php else: ?>
-    <p>No posts found.</p>
-<?php endif; ?>
-<?php include_once 'header.php'; ?>
+    <hr>
+
+    <h3>All Posts</h3>
+
+    <?php if (empty($posts)): ?>
+        <p>No posts yet. Be the first to write one!</p>
+    <?php else: ?>
+        <?php foreach ($posts as $post): ?>
+            <div style="border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
+                <h3><?= htmlspecialchars($post['title']) ?></h3>
+                <p><?= nl2br(htmlspecialchars($post['content'])) ?></p>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+
 </body>
 </html>
